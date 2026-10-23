@@ -1,0 +1,7 @@
+-r requirements.txt
+pytest
+httpx
+uvicorn
+pgserver   # optional: throwaway local Postgres for fast DB tests
+anthropic  # optional: explanation rewording
+streamlit  # only for legacy/streamlit_app.py

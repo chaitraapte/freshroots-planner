@@ -1,0 +1,8 @@
+.venv
+legacy
+outputs
+tests
+docs
+.env
+.pytest_cache
+__pycache__

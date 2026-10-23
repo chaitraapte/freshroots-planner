@@ -1,0 +1,16 @@
+SKU_ID,SKU_Name,Category,Perishability,Standard_Reorder_Qty,Unit_of_Measure,Distributor_ID
+SKU001,Freshroots Mango Drink 200ml,Beverage,Low,500,Units,DIST001
+SKU002,Freshroots Oats Cookies 150g,Snack,Low,200,Units,DIST001
+SKU003,Freshroots Brown Rice 1kg,Staple,Low,300,Units,DIST002
+SKU004,Freshroots Almond Milk 500ml,Dairy Alt,High,150,Units,DIST002
+SKU005,Freshroots Mixed Nuts 100g,Snack,Low,150,Units,DIST003
+SKU006,Freshroots Quinoa 500g,Staple,Low,100,Units,DIST003
+SKU007,Freshroots Coconut Water 330ml,Beverage,High,400,Units,DIST001
+SKU008,Freshroots Granola Bar 40g,Snack,Low,300,Units,DIST002
+SKU009,Freshroots Chia Seeds 200g,Staple,Low,80,Units,DIST003
+SKU010,Freshroots Apple Cider Vinegar 500ml,Condiment,Low,60,Units,DIST004
+SKU011,Freshroots Multigrain Bread 400g,Staple,High,500,Units,DIST004
+SKU012,Freshroots Herbal Tea 25 bags,Beverage,Low,150,Units,DIST004
+SKU013,Freshroots Peanut Butter 300g,Condiment,Low,120,Units,DIST001
+SKU014,Freshroots Dark Chocolate 80g,Snack,Low,200,Units,DIST002
+SKU015,Freshroots Honey 500g,Condiment,Low,80,Units,DIST003
