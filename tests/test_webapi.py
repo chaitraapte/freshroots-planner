@@ -101,3 +101,40 @@ def test_db_flow_end_to_end(monkeypatch, eng):  # noqa: F811
     assert c.post("/api/config", headers=P, json={"changes": {"festival_uplift_default": 1.1}, "note": "test"}).status_code == 200
     webapi.bust()
     assert c.get("/api/plan").json()["stale"] is True
+
+
+def test_approved_po_download_uses_final_quantities(monkeypatch, eng):  # noqa: F811
+    import io
+    import pandas as pd
+    monkeypatch.setenv("DATABASE_URL", "postgresql://dummy/dummy")
+    monkeypatch.setenv("APP_PASSCODE", "pw")
+    monkeypatch.delenv("STORAGE", raising=False)
+    monkeypatch.setattr(webapi, "_engine", eng)
+    monkeypatch.setattr(webapi, "_awake", True)
+    webapi.bust()
+    c, P = TestClient(webapi.app), {"x-passcode": "pw"}
+    assert c.get("/api/download/approved/DIST002.csv").status_code == 409  # no saved run yet
+    rid = c.post("/api/run", headers=P).json()["run_id"]
+    webapi.bust()
+    assert c.get("/api/download/approved/DIST002.csv").status_code == 404  # nothing approved yet
+    dec = lambda sku, d, **k: c.post("/api/decisions", headers=P, json={"run_id": rid, "sku_id": sku, "decision": d, "by": "raghav", **k})  # noqa: E731
+    assert dec("SKU004", "Change quantity", qty=300, reason="Supplier MOQ").status_code == 200
+    assert dec("SKU003", "Hold", reason="Waiting on quote").status_code == 200
+    webapi.bust()
+    r = c.get("/api/download/approved/DIST002.csv")
+    assert r.status_code == 200 and 'filename="DIST002_approved.csv"' in r.headers["content-disposition"]
+    df = pd.read_csv(io.StringIO(r.text))
+    assert list(df["sku_id"]) == ["SKU004"]  # held line and undecided lines are excluded
+    row = df.iloc[0]
+    assert row["draft_quantity"] == 150 and row["approved_quantity"] == 300 and row["decided_by"] == "raghav" and "never places orders" in row["status"]
+    assert dec("SKU003", "Accept").status_code == 200  # the latest decision wins
+    webapi.bust()
+    assert set(pd.read_csv(io.StringIO(c.get("/api/download/approved/DIST002.csv").text))["sku_id"]) == {"SKU004", "SKU003"}
+    assert c.get("/api/download/approved/NOPE.csv").status_code == 404
+    c.post("/api/skus/commit", headers=P, json={"action": "retire", "sku_id": "SKU001", "by": "t"})
+    webapi.bust()
+    assert c.get("/api/download/approved/DIST002.csv").status_code == 409  # data changed since the run
+
+
+def test_approved_po_blocked_offline(csv_client):
+    assert csv_client.get("/api/download/approved/DIST002.csv").status_code == 403

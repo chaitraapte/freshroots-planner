@@ -16,12 +16,21 @@
 
 ## Findings from running the rules on the pilot data
 
-1. **A uniform 25% uplift is contradicted by the data.** Festival weeks (W40-W42) against earlier non-festival weeks (W27-W39) give a median lift of about 3%; only SKU001 is above 20% (+32%). Three weeks is a signal, not evidence, but the configured 25% is not supported by it. The Scenario lab lets a user set uplift per category and watch every flag move.
+1. **A uniform 25% uplift is contradicted by the data.** Festival weeks (W40-W42) against earlier non-festival weeks (W27-W39) give a median lift of +2.4% across the 15 SKUs (the brief says "about 3%"; its baseline window is W27-W38, mine is W27-W39 because W39 is not a festival week by the Thursday rule). Only SKU001 is above 20% (+32%). Three weeks is a signal, not evidence, but the configured 25% is not supported by it. The What-if page lets a user set uplift per category and watch every flag move.
 2. **The brief's quantities often do not restore cover.** SKU003 stays at about 6.0 weeks and SKU013 at about 5.3 weeks after the literal quantity, right at the stockout line. Whole-multiple sizing gives 9.1 and 9.5 weeks.
 3. **Verdicts are sensitive to interpretation.** SKU002 is OK with the uplift and OVERSTOCK (14.3 weeks) without it. SKU007 is OVERSTOCK on the base reading and OK when the last-4-week average is the base.
 4. **The perishable trap.** SKU004 (180 on hand, standard 150): rounding up to 2 multiples gives 4.8 weeks, over the 4-week cap; 1 multiple gives 3.3 weeks. Blind round-up would breach shelf life.
 5. **SKU001 is both the clearest stockout and an exception.** Its step change in W39-W42 trips the outlier check, so it is held for review and gets no draft PO even though the engine recommends 1,500 units.
 6. **Results that differ from the brief's wording.** The brief says SKU007 has a rising trend of about +10% and must end as REVIEW. The trend is +9.9%, below the rule's threshold, so it ends as REVIEW because its verdict is unstable, not because of the trend rule. No test was edited to pass.
+
+## Behaviour added after stress-testing
+
+- A sales week that has not finished at the as-of date is ignored, so partial sales are never read as demand.
+- Impossible ISO weeks (for example 2026-W99) stop the data-quality gate and are refused on upload, because one such row used to crash every page.
+- Saved settings are validated; an invalid saved version falls back to defaults with a visible warning, and Rules & data has a Reset to defaults button.
+- Server errors never expose SQL or connection strings.
+- The optional AI helper (Google models via OpenRouter) only explains engine output; any answer containing a number the engine did not compute is discarded.
+- Approved POs: Today records each human decision; the Orders page downloads an approved-quantities CSV (final quantities, decider, reason) separately from the engine's draft CSV. It is refused when the saved run is out of date.
 
 ## Limitations
 

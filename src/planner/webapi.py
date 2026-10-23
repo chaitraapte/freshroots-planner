@@ -206,6 +206,30 @@ def download(name: str, request: Request):
         body = res.exceptions.to_csv(index=False)
     elif name == "run_report.md":
         body = outputs.report_markdown(res, outputs.assumptions_list(res.meta["config"], data))
+    elif name.startswith("approved/") and name.endswith(".csv"):
+        if mode != "db":
+            bad("Approved orders need the database (offline mode is read-only).", 403)
+        d = name[len("approved/"):-4]
+        if d not in res.draft_pos:
+            bad("No draft PO for that distributor.", 404)
+        with get_engine().connect() as conn:
+            latest = store.latest_run(conn)
+            decided = store.decisions_for_run(conn, latest["run_id"]) if latest else {}
+        if latest is None or latest["data_fingerprint"] != res.meta["fingerprint"] or latest["config_version_id"] != cid:
+            bad("The saved run is out of date. Re-run the planner, then approve again.", 409)
+        lines = res.draft_pos[d].copy()
+        lines["decision"] = lines["sku_id"].map(lambda k: (decided.get(k) or {}).get("human_decision", ""))
+        lines["draft_quantity"] = lines["quantity"]
+        lines["approved_quantity"] = [int((decided[k].get("human_qty") if decided[k]["human_decision"] == "Change quantity" else q) or 0)
+                                      if k in decided and decided[k]["human_decision"] in ("Accept", "Change quantity") else 0
+                                      for k, q in zip(lines["sku_id"], lines["quantity"])]
+        lines["decided_by"] = lines["sku_id"].map(lambda k: (decided.get(k) or {}).get("decided_by", ""))
+        lines["reason"] = lines["sku_id"].map(lambda k: (decided.get(k) or {}).get("reason") or "")
+        lines = lines[lines["approved_quantity"] > 0]
+        if lines.empty:
+            bad("No lines are approved for this distributor yet.", 404)
+        lines["status"] = "APPROVED by a human - the tool never places orders"
+        body = lines[["distributor_id", "distributor_name", "sku_id", "sku_name", "draft_quantity", "approved_quantity", "decision", "decided_by", "reason", "status"]].to_csv(index=False)
     elif name.startswith("po/") and name.endswith(".csv"):
         d = name[3:-4]
         if d not in res.draft_pos:
@@ -214,7 +238,7 @@ def download(name: str, request: Request):
     else:
         bad("Unknown file.", 404)
     return Response(body, media_type="text/csv" if name.endswith(".csv") else "text/markdown",
-                    headers={"Content-Disposition": f'attachment; filename="{name.split("/")[-1]}"'})
+                    headers={"Content-Disposition": f'attachment; filename="{(name[len("approved/"):-4] + "_approved.csv") if name.startswith("approved/") else name.split("/")[-1]}"'})
 
 
 # ------------------------------------------------------------------ scenario lab

@@ -46,7 +46,8 @@ async function write(p, b) { // a write that asks for the passcode when needed
 }
 async function download(name) {
   const r = await fetch("/api/download/" + name, { headers: S.csv ? { "x-mode": "csv" } : {} });
-  const a = h("a", { href: URL.createObjectURL(await r.blob()), download: name.split("/").pop() });
+  if (!r.ok) { const j = await r.json().catch(() => ({})); return toast(j.detail || "Download failed.", true); }
+  const a = h("a", { href: URL.createObjectURL(await r.blob()), download: name.startsWith("approved/") ? name.slice(9, -4) + "_approved.csv" : name.split("/").pop() });
   document.body.append(a); a.click(); a.remove();
 }
 function toast(msg, err) {
@@ -317,7 +318,8 @@ function orders(page) {
     const final = (r) => (!r.d ? r.quantity : r.d.human_decision === "Change quantity" ? r.d.human_qty : r.d.human_decision === "Accept" ? r.quantity : 0);
     const approved = rows.filter((r) => r.d && (r.d.human_decision === "Accept" || r.d.human_decision === "Change quantity")).length;
     page.append(h("div", { class: "card" }, h("div", { class: "card-h" }, h("h2", {}, `${lines[0].distributor_name}`), chip(d), h("span", { class: "fine" }, `${approved} of ${rows.length} lines approved · ${fmt(rows.reduce((a, r) => a + (r.d ? final(r) : 0), 0), 0)} units approved`),
-      h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => download(`po/${d}.csv`) }, "Download draft CSV")),
+      h("span", { class: "grow" }), h("button", { class: "btn", onclick: () => download(`po/${d}.csv`) }, "Draft CSV"),
+      h("button", { class: "btn primary", disabled: !approved || p.stale, title: p.stale ? "Re-run the planner first" : approved ? "" : "Approve at least one line on Today", onclick: () => download(`approved/${d}.csv`) }, "Download approved PO")),
       table([{ key: "sku_name", label: "Item", render: (r) => `${r.sku_name} (${r.sku_id})` }, { key: "quantity", label: "Draft qty", num: true, render: (r) => fmt(r.quantity, 0) },
         { key: "f", label: "Final qty", num: true, render: (r) => (r.d ? fmt(final(r), 0) : "—") },
         { key: "s", label: "Status", render: (r) => (!r.d ? chip("Awaiting approval", "amber") : r.d.human_decision === "Accept" ? chip("Approved", "green") : r.d.human_decision === "Change quantity" ? chip("Changed", "blue") : chip(r.d.human_decision === "Hold" ? "On hold" : "Rejected", "red")) }], rows),
