@@ -45,6 +45,8 @@ Offline demo (no internet, read-only; SKU manager and decision log disabled): `S
 TEST_DATABASE_URL=<Neon "test" branch> .venv/bin/python -m pytest tests/test_db.py
 ```
 
+`scripts/e2e_check.py` starts the real server against the test database and exercises every write path over HTTP (about 57 checks; it writes test data, so only run it on a disposable database).
+
 DB tests refuse to run if `TEST_DATABASE_URL` is missing or equals `DATABASE_URL`; each session works in its own schema, dropped afterwards.
 
 ## Assumptions
