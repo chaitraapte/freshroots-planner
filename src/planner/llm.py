@@ -48,25 +48,30 @@ def openrouter_model() -> str:
     return chosen
 
 
-def complete(system: str, user: str, max_tokens: int = 500) -> str | None:
-    """Returns text, or None on any failure (callers fall back to deterministic text). OpenRouter gets one retry."""
-    out = _complete_once(system, user, max_tokens)
-    if out is None and provider() == "openrouter":
-        out = _complete_once(system, user, max_tokens)
+def complete(system: str, user: str, max_tokens: int = 500, budget_s: float = 22.0) -> str | None:
+    """Returns text, or None on any failure (callers fall back to deterministic text).
+    OpenRouter gets one retry, but the whole call is capped at budget_s so a serverless function can never hit its time limit."""
+    import time
+    start = time.monotonic()
+    out = _complete_once(system, user, max_tokens, timeout=budget_s)
+    left = budget_s - (time.monotonic() - start)
+    if out is None and provider() == "openrouter" and left > 4:
+        out = _complete_once(system, user, max_tokens, timeout=left)
     return out
 
 
-def _complete_once(system: str, user: str, max_tokens: int) -> str | None:
+def _complete_once(system: str, user: str, max_tokens: int, timeout: float = 22.0) -> str | None:
     p = provider()
     try:
         if p == "openrouter":
-            body = json.dumps({"model": openrouter_model(), "max_tokens": max(max_tokens, 3000), "temperature": 0.2,
+            body = json.dumps({"model": openrouter_model(), "max_tokens": max(max_tokens, 1500), "temperature": 0.2,
+                               "reasoning": {"effort": "low"},  # explanations don't need long hidden reasoning: ~2s instead of 7-40s
                                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
                                "provider": GOOGLE_ONLY}).encode()
             req = urllib.request.Request(OPENROUTER_URL + "/chat/completions", data=body, method="POST",
                                          headers={"Authorization": "Bearer " + db.get_secret("OPENROUTER_API_KEY"), "Content-Type": "application/json",
                                                   "X-Title": "Freshroots Demand Planning"})
-            with urllib.request.urlopen(req, timeout=40) as r:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 data = json.load(r)
             return (data["choices"][0]["message"].get("content") or "").strip() or None
         if p == "gemini":
@@ -75,7 +80,7 @@ def _complete_once(system: str, user: str, max_tokens: int) -> str | None:
                                "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.2}}).encode()
             req = urllib.request.Request(GEMINI_URL.format(model=model), data=body, method="POST",
                                          headers={"content-type": "application/json", "x-goog-api-key": db.get_secret("GEMINI_API_KEY")})
-            with urllib.request.urlopen(req, timeout=25) as r:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 data = json.load(r)
             return "".join(part.get("text", "") for part in data["candidates"][0]["content"]["parts"]).strip() or None
         if p == "claude":

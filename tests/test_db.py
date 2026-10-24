@@ -25,6 +25,10 @@ def test_harness_refuses_without_or_equal_url(monkeypatch):
         db.require_test_url()
 
 
+DATA_TABLES = ["distributors", "skus", "weekly_sales", "inventory_snapshots", "calendar", "lead_times", "open_pos", "shelf_life",
+               "unit_costs", "config_versions", "runs", "recommendations", "decisions", "sku_changes"]
+
+
 @pytest.fixture(scope="session")
 def schema_engine():
     url = db.require_test_url()  # raises (test errors) rather than touching any other database
@@ -33,6 +37,8 @@ def schema_engine():
     with admin.begin() as c:
         c.execute(text(f'CREATE SCHEMA "{schema}"'))
     eng = db.make_engine(url, schema=schema)
+    with eng.begin() as c:  # migrate once per session; tests only reset the data (far fewer network round trips)
+        store.apply_migrations(c, ROOT / "migrations")
     yield eng
     eng.dispose()
     with admin.begin() as c:
@@ -42,12 +48,9 @@ def schema_engine():
 
 @pytest.fixture()
 def eng(schema_engine):
-    """Fresh migrated + ingested state for each test."""
+    """Same migrated schema, data reset to the ingested CSVs for each test."""
     with schema_engine.begin() as c:
-        c.execute(text("DROP SCHEMA public CASCADE")) if False else None
-        c.exec_driver_sql("DO $$ DECLARE r record; BEGIN FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = current_schema() LOOP "
-                          "EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE'; END LOOP; END $$;")
-        store.apply_migrations(c, ROOT / "migrations")
+        c.exec_driver_sql("TRUNCATE " + ", ".join(DATA_TABLES) + " RESTART IDENTITY CASCADE")
         store.ingest(c, CSV)
     return schema_engine
 

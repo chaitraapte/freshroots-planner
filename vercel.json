@@ -12,7 +12,7 @@
   "functions": {
     "api/index.py": {
       "includeFiles": "{src,data,migrations}/**",
-      "maxDuration": 30
+      "maxDuration": 60
     }
   }
 }

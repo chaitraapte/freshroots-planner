@@ -60,6 +60,7 @@ def test_openrouter_request_is_google_only_and_never_logs_key(monkeypatch):
     assert seen["body"]["model"].startswith("google/")  # a non-Google model setting is ignored
     assert seen["body"]["provider"] == {"only": ["google-vertex", "google-ai-studio"], "allow_fallbacks": False}
     assert "sk-or-v1-test" not in json.dumps(seen["body"])
+    assert seen["body"]["reasoning"] == {"effort": "low"}  # keeps answers fast enough for a serverless time limit
 
 
 def test_missing_model_is_swapped_for_closest_google_flash(monkeypatch):
@@ -74,3 +75,21 @@ def test_missing_model_is_swapped_for_closest_google_flash(monkeypatch):
         {"id": "openai/gpt-5"}, {"id": "google/gemini-3.8-flash"}, {"id": "google/gemini-3.1-flash-image"}, {"id": "google/gemma-4-31b-it:free"}]}).encode()))
     llm._model_cache.clear()
     assert llm.openrouter_model() == "google/gemini-3.8-flash"
+
+
+def test_ai_call_never_exceeds_its_time_budget(monkeypatch):
+    import itertools
+    calls = []
+    monkeypatch.setattr(llm.db, "get_secret", lambda n, d=None: {"OPENROUTER_API_KEY": "k"}.get(n, d))
+    monkeypatch.setattr(llm, "_complete_once", lambda s, u, m, timeout=0: calls.append(timeout))
+    # a fast failure leaves budget for exactly one retry, drawn from the same 22s
+    ticks = itertools.chain([0.0, 1.0], itertools.repeat(1.0))
+    monkeypatch.setattr("time.monotonic", lambda: next(ticks))
+    assert llm.complete("s", "u", budget_s=22) is None
+    assert len(calls) == 2 and calls[0] == 22 and calls[1] == 21
+    # a slow first attempt (20s) leaves under 4s, so there is no retry and the function stays inside its time limit
+    calls.clear()
+    ticks = itertools.chain([0.0, 20.0], itertools.repeat(20.0))
+    monkeypatch.setattr("time.monotonic", lambda: next(ticks))
+    assert llm.complete("s", "u", budget_s=22) is None
+    assert calls == [22]
