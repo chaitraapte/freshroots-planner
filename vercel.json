@@ -1,6 +1,18 @@
 {
-  "rewrites": [{ "source": "/api/(.*)", "destination": "/api/index" }],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/dashboard/index.html"
+    }
+  ],
   "functions": {
-    "api/index.py": { "includeFiles": "{src,data,migrations}/**", "maxDuration": 30 }
+    "api/index.py": {
+      "includeFiles": "{src,data,migrations}/**",
+      "maxDuration": 30
+    }
   }
 }

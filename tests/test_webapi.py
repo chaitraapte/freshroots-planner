@@ -138,3 +138,24 @@ def test_approved_po_download_uses_final_quantities(monkeypatch, eng):  # noqa: 
 
 def test_approved_po_blocked_offline(csv_client):
     assert csv_client.get("/api/download/approved/DIST002.csv").status_code == 403
+
+
+def test_homepage_is_the_landing_and_dashboard_lives_under_dashboard(csv_client):
+    home = csv_client.get("/")
+    assert home.status_code == 200 and "<title>Freshroots Demand Planning</title>" in home.text and 'id="root"' in home.text
+    dash = csv_client.get("/dashboard/")
+    assert dash.status_code == 200 and 'id="nav"' in dash.text and "/dashboard/app.js" in dash.text
+    for asset, ctype in (("/dashboard/app.js", "javascript"), ("/dashboard/style.css", "css"), ("/favicon.svg", "svg")):
+        r = csv_client.get(asset)
+        assert r.status_code == 200 and ctype in r.headers["content-type"], asset
+    # every file the landing page references must exist
+    import re
+    for ref in re.findall(r'(?:src|href)="(/assets/[^"]+)"', home.text):
+        assert csv_client.get(ref).status_code == 200, ref
+    assert csv_client.get("/api/health").json() == {"ok": True}  # API routes still win over the static catch-all
+
+
+@pytest.mark.parametrize("path", ["/../src/planner/db.py", "/..%2fsrc%2fplanner%2fdb.py", "/dashboard/../../.env", "/%2e%2e/.env", "/nope.js", "/dashboard/missing.css"])
+def test_static_server_cannot_escape_public(csv_client, path):
+    r = csv_client.get(path)
+    assert r.status_code == 404 and "DATABASE_URL" not in r.text and "def " not in r.text

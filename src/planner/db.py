@@ -42,8 +42,9 @@ def normalize_url(url: str) -> str:
 
 
 def make_engine(url: str, schema: str | None = None):
-    # prepare_threshold=None: safe behind Neon's pgbouncer pooler; pool is small because serverless instances multiply
-    eng = create_engine(normalize_url(url), pool_pre_ping=True, pool_size=2, max_overflow=2, connect_args={"prepare_threshold": None})
+    # prepare_threshold=None: safe behind Neon's pgbouncer pooler; pool is small because serverless instances multiply;
+    # connect_timeout + keepalives: a stalled handshake or a silently dropped connection must fail fast (and be retried) instead of hanging forever
+    eng = create_engine(normalize_url(url), pool_pre_ping=True, pool_size=2, max_overflow=2, connect_args={"prepare_threshold": None, "connect_timeout": 15, "keepalives": 1, "keepalives_idle": 20, "keepalives_interval": 5, "keepalives_count": 3})
     if schema:
         @event.listens_for(eng, "connect")
         def _set_path(dbapi_conn, _):

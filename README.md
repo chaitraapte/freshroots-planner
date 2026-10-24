@@ -4,7 +4,7 @@ Applies Raghav Kulkarni's documented reorder rules to SAP exports, sizes orders 
 
 ## Dashboard and Vercel
 
-The dashboard is static HTML/JS in `public/` talking to a FastAPI function (`api/index.py`) that reuses the engine and `store.py` unchanged. It recomputes from Neon on every load and refreshes itself every 30 seconds, so it is always as current as the database.
+The home page (`/`) is a React + Tailwind + shadcn landing page whose source is in `landing/`; it is built into `public/` and committed, so Vercel needs no build step. After editing it run `cd landing && npm install && npm run build`. The dashboard (`/dashboard/`) is static HTML/JS in `public/dashboard/` talking to a FastAPI function (`api/index.py`) that reuses the engine and `store.py` unchanged. It recomputes from Neon on every load and refreshes itself every 30 seconds, so it is always as current as the database.
 
 - **Writes need a passcode.** The URL has no login. Every write endpoint (re-run, decisions, SKU manager, config) requires the `x-passcode` header to match the `APP_PASSCODE` environment variable; if that variable is unset, writes are disabled and the dashboard is read-only. This is a pilot gate, not authentication.
 - **Deploy:** `vercel` from this folder. Set `DATABASE_URL` (pooled Neon string) and `APP_PASSCODE` as Vercel environment variables, optionally `DATABASE_URL_DIRECT` is not needed at runtime. Do not set `TEST_DATABASE_URL` there. Run migrate/ingest from your machine.
@@ -25,17 +25,17 @@ cp .env.example .env            # fill in Neon strings and APP_PASSCODE (never c
 .venv/bin/python scripts/migrate.py
 .venv/bin/python scripts/ingest_csv.py data/ --dry-run
 .venv/bin/python scripts/ingest_csv.py data/
-.venv/bin/uvicorn planner.webapi:app --app-dir src --port 8765   # then open http://localhost:8765
+.venv/bin/uvicorn planner.webapi:app --app-dir src --port 8765   # then open http://localhost:8765 (home page) or http://localhost:8765/dashboard/ (dashboard)
 ```
 
-Offline demo (no internet, read-only; SKU manager and decision log disabled): `STORAGE=csv .venv/bin/uvicorn planner.webapi:app --app-dir src --port 8765   # then open http://localhost:8765`, or `scripts/run_plan.py --csv data`.
+Offline demo (no internet, read-only; SKU manager and decision log disabled): `STORAGE=csv .venv/bin/uvicorn planner.webapi:app --app-dir src --port 8765   # then open http://localhost:8765 (home page) or http://localhost:8765/dashboard/ (dashboard)`, or `scripts/run_plan.py --csv data`.
 
 
 ## Layout
 
 - `src/planner/` engine (pure DataFrame functions: `engine.py`, `quality.py`, `explain.py`, `scenario.py`, `outputs.py`); `store.py` and `db.py` are the only modules that touch Postgres.
 - `migrations/` plain SQL, applied by `scripts/migrate.py` (tracked in `schema_migrations`).
-- `scripts/` migrate, ingest_csv, run_plan, scale_test. `public/` the live HTML dashboard (no build step), `src/planner/webapi.py` + `api/index.py` its FastAPI backend, `legacy/` the earlier Streamlit version (not deployed). `tests/`.
+- `scripts/` migrate, ingest_csv, run_plan, scale_test. `public/dashboard/` the live HTML dashboard (no build step), `landing/` the React home page (builds into `public/`), `src/planner/webapi.py` + `api/index.py` its FastAPI backend, `legacy/` the earlier Streamlit version (not deployed). `tests/`.
 - Each run writes `outputs/action_list.csv`, `exceptions.csv`, `draft_pos/<distributor>.csv`, `run_report.md`, and (with Neon) a `runs` row plus `recommendations`.
 
 ## Tests

@@ -549,18 +549,18 @@ def bulk_commit(request: Request, body: dict = Body(...)):
     return results
 
 
-# ------------------------------------------------------------------ static files (local dev; Vercel serves /public itself)
-@app.get("/")
-def index():
-    return Response((ROOT / "public" / "index.html").read_text(), media_type="text/html")
+# ------------------------------------------------------------------ static files (local dev only; Vercel serves /public from its CDN)
+_MEDIA = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2", ".json": "application/json"}
 
 
-@app.get("/{name}.{ext}")
-def static_file(name: str, ext: str):
-    if ext not in ("js", "css", "svg") or "/" in name:
+@app.get("/{path:path}")
+def static_site(path: str):
+    root = (ROOT / "public").resolve()
+    target = (root / path).resolve()
+    if root not in target.parents and target != root:  # never serve anything outside /public
         raise HTTPException(404, "Not found")
-    p = ROOT / "public" / f"{name}.{ext}"
-    if not p.exists():
+    if target.is_dir():
+        target = target / "index.html"
+    if not target.is_file():
         raise HTTPException(404, "Not found")
-    mt = {"js": "text/javascript", "css": "text/css", "svg": "image/svg+xml"}[ext]
-    return Response(p.read_text(), media_type=mt)
+    return Response(target.read_bytes(), media_type=_MEDIA.get(target.suffix, "application/octet-stream"))
